@@ -87,11 +87,9 @@ def login(tokens):
 
 r = redis.StrictRedis(host='localhost',port=6379,db=0)
 
-parse_command()
-
 var = 1
 while var == 1 :
     varvar = r.blpop('inQ')
     dictionary = r.hgetall(varvar[1])
-    message = r.hget(varvar,'message')
+    message = r.hget(varvar[1],'message')
     parse_command(message)
