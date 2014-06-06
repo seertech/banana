@@ -18,6 +18,7 @@ error = {
     'error_unknown' : 'Unknown Command.',
     'error_syntax' : 'Syntax Error.',
     'error_already_logged' : 'You are already logged in. Log current account first.',
+    'error_double_logout' : 'You are not logged in in the first place.',
     'error_login' : 'User does not exsist or username and password is incorrect.',
 }
 
@@ -53,11 +54,14 @@ def parse_command(input):
     return response
 
 
-#
+# logouts the current user
 def logout():
 
-    logged_user = None
-    return notif['notif_logout_success']
+    if logged_user is not None:
+        logged_user = None
+        return notif['notif_logout_success']
+    else:
+        return error['error_double_logout']
 
 
 # checks credentials and login user
