@@ -37,24 +37,27 @@ logged_user = None
 # Parses and identifies the command
 def parse_command(input):
     tokens = input.split(' ')
+    response = 'default'
 
     if tokens[0] == "banana":
         
         if tokens[1] == "login":
-            login(tokens)
+            response = login(tokens)
         
         if tokens[1] == "logout":
-            logout()
+            response = logout()
 
         if tokens[1] == "basecamp":
             pass
+
+    return response
 
 
 #
 def logout():
 
     logged_user = None
-    print notif['notif_logout_success']
+    return notif['notif_logout_success']
 
 
 # checks credentials and login user
@@ -70,26 +73,32 @@ def login(tokens):
             correct_credentials = True
             
             if  logged_user is not None:
-                print error['error_already_logged']
+                return error['error_already_logged']
 
             elif user[1]['username'] == logged_user:
-                print error['error_already_logged']
+                return error['error_already_logged']
 
             else:
                 logged_user = user[1]['username']
-                print notif['notif_login_success']
+                return notif['notif_login_success']
 
     if not correct_credentials:
-        print error['error_login']
+        return error['error_login']
 
 
 ##########################################################
 
 r = redis.StrictRedis(host='localhost',port=6379,db=0)
 
+if(r.get('counttwo') is None):
+    r.set('counttwo','1')
+
 var = 1
 while var == 1 :
     varvar = r.blpop('inQ')
     dictionary = r.hgetall(varvar[1])
     message = r.hget(varvar[1],'message')
-    parse_command(message)
+    response = parse_command(message)
+    r.hset('response:'+str(r.get('counttwo')),'response',response)
+    r.rpush('outQ','response:'+str(r.get('counttwo')))
+    r.incr('counttwo')    
