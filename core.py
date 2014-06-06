@@ -1,3 +1,5 @@
+import redis
+
 # Hardcoded user credentials for logging in
 db_user = {
 	1 : {
@@ -10,13 +12,6 @@ db_user = {
 		'password' : 'bar'
 	}
 }
-
-# Hardcoded input for testing
-input_commands = (
-    "banana login admin password",
-    "banana basecamp add 06/06/14 2.5 'Daenerys Targaryen' 'feed dragons'",
-    "banana logout",
-)
 
 # Hardcoded error message
 error = {
@@ -90,4 +85,13 @@ def login(tokens):
 
 ##########################################################
 
-parse_command(input_commands[0])
+r = redis.StrictRedis(host='localhost',port=6379,db=0)
+
+parse_command()
+
+var = 1
+while var == 1 :
+    varvar = r.blpop('inQ')
+    dictionary = r.hgetall(varvar[1])
+    message = r.hget(varvar,'message')
+    parse_command(message)
