@@ -25,6 +25,8 @@ def bananaAction(r):
         r.hset('response:'+str(r.get('counttwo')),'response',response)
         r.rpush('outQ','response:'+str(r.get('counttwo')))
         r.incr('counttwo')
+        if response == "exit":
+            break
 
 # Parses and identifies the command
 def parse_command(input):
@@ -41,6 +43,9 @@ def parse_command(input):
 
         if tokens[1] == "basecamp":
             pass
+
+    elif tokens[0] == "exit":
+        response = "exit"
 
     return response
 
@@ -98,11 +103,11 @@ def sendAction(r):
 
     while (1):
         command = raw_input("Enter a message: ")
-        if (command == 'exit'):
-            break
         r.hset('command:'+str(r.get('count')),'message',command)
         r.rpush('inQ','command:'+str(r.get('count')))
         r.incr('count') 
+        if command == 'exit':
+            break
 
 #################
 # LISTEN THREAD #
@@ -114,17 +119,20 @@ class listen(threading.Thread):
     def run(self):
         listenAction(self.redis_conn)
 
-
+#checks the outQ for response messages
 def listenAction(r):
     var = 1
     while var == 1 :
         varvar = r.blpop('outQ')
         response = r.hget(varvar[1],'response')
         print response
+        if response == "exit":
+            break
 
 
 ##########################################################
 
+#   Temporary values for testing.
 
 ##########################################################
 
