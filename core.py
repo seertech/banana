@@ -1,38 +1,30 @@
 import redis
+import threading
 
-# Hardcoded user credentials for logging in
-db_user = {
-	1 : {
-		'username' : 'admin',
-		'password' : 'password'
-	},
+#################
+# CORE THREAD   #
+#################
+class core(threading.Thread):
+    def __init__(self,redis_conn):
+        threading.Thread.__init__(self)
+        self.redis_conn = redis_conn
 
-	2 : {
-		'username' : 'foo',
-		'password' : 'bar'
-	}
-}
+    def run(self):
+        bananaAction(self.redis_conn)
 
-# Hardcoded error message
-error = {
-    'error_unknown' : 'Unknown Command.',
-    'error_syntax' : 'Syntax Error.',
-    'error_already_logged' : 'You are already logged in. Log current account first.',
-    'error_login' : 'User does not exsist or username and password is incorrect.',
-}
+def bananaAction(r):
+    if(r.get('counttwo') is None):
+        r.set('counttwo','1')
 
-# Hardcoded notif message
-notif = {
-    'notif_login_success' : 'Login Success',
-    'notif_logout_success' : 'You have been successfully logged out.',
-}
-
-
-##########################################################
-
-logged_user = None
-
-##########################################################
+    var = 1
+    while var == 1 :
+        varvar = r.blpop('inQ')
+        dictionary = r.hgetall(varvar[1])
+        message = r.hget(varvar[1],'message')
+        response = parse_command(message)
+        r.hset('response:'+str(r.get('counttwo')),'response',response)
+        r.rpush('outQ','response:'+str(r.get('counttwo')))
+        r.incr('counttwo')
 
 # Parses and identifies the command
 def parse_command(input):
@@ -85,20 +77,91 @@ def login(tokens):
     if not correct_credentials:
         return error['error_login']
 
+#################
+# SEND THREAD   #
+#################
+class send(threading.Thread):
+    def __init__(self, redis_conn):
+        threading.Thread.__init__(self)
+        self.redis_conn = redis_conn
+
+    def run(self):
+        sendAction(self.redis_conn)
+
+def sendAction(r):
+    #if count is undeclared, initialize it to 1
+    if(r.get('count') is None):
+        r.set('count','1')
+
+    while (1):
+        command = raw_input("Enter a message: ")
+        if (command == 'exit'):
+            break
+        r.hset('command:'+str(r.get('count')),'message',command)
+        r.rpush('inQ','command:'+str(r.get('count')))
+        r.incr('count') 
+
+#################
+# LISTEN THREAD #
+#################
+class listen(threading.Thread):
+    def __init__(self, redis_conn):
+        threading.Thread.__init__(self)
+        self.redis_conn = redis_conn
+    def run(self):
+        listenAction(self.redis_conn)
+
+
+def listenAction(r):
+    var = 1
+    while var == 1 :
+        varvar = r.blpop('outQ')
+        response = r.hget(varvar[1],'response')
+        print response
+
+
+##########################################################
+
+
+##########################################################
+
+logged_user = None
+
+# Hardcoded user credentials for logging in
+db_user = {
+    1 : {
+        'username' : 'admin',
+        'password' : 'password'
+    },
+
+    2 : {
+        'username' : 'foo',
+        'password' : 'bar'
+    }
+}
+
+# Hardcoded error message
+error = {
+    'error_unknown' : 'Unknown Command.',
+    'error_syntax' : 'Syntax Error.',
+    'error_already_logged' : 'You are already logged in. Log current account first.',
+    'error_login' : 'User does not exsist or username and password is incorrect.',
+}
+
+# Hardcoded notif message
+notif = {
+    'notif_login_success' : 'Login Success',
+    'notif_logout_success' : 'You have been successfully logged out.',
+}
 
 ##########################################################
 
 r = redis.StrictRedis(host='localhost',port=6379,db=0)
 
-if(r.get('counttwo') is None):
-    r.set('counttwo','1')
+coreThread = core(r)
+listenThread = listen(r)
+sendThread = send(r)
 
-var = 1
-while var == 1 :
-    varvar = r.blpop('inQ')
-    dictionary = r.hgetall(varvar[1])
-    message = r.hget(varvar[1],'message')
-    response = parse_command(message)
-    r.hset('response:'+str(r.get('counttwo')),'response',response)
-    r.rpush('outQ','response:'+str(r.get('counttwo')))
-    r.incr('counttwo')    
+coreThread.start()      
+listenThread.start()
+sendThread.start()      
