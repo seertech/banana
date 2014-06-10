@@ -1,5 +1,8 @@
+# B.A.N.A.N.A. (Because Another Name Ain't Nothing Ayt)
 import redis
 import threading
+import time
+from basecamp_module import Basecamp_module
 
 #################
 # CORE THREAD   #
@@ -38,11 +41,11 @@ def parse_command(input):
         if tokens[1] == "login":
             response = login(tokens)
         
-        if tokens[1] == "logout":
+        elif tokens[1] == "logout":
             response = logout()
 
-        if tokens[1] == "basecamp":
-            pass
+        elif tokens[1] == "basecamp":
+            response = basecampFunction(tokens)
 
     elif tokens[0] == "exit":
         response = "exit"
@@ -85,49 +88,61 @@ def login(tokens):
     if not correct_credentials:
         return error['error_login']
 
+def basecampFunction(tokens):
+    bc = Basecamp_module()
+    bc.show_logs()
+
 #################
 # SEND THREAD   #
 #################
 class send(threading.Thread):
-    def __init__(self, redis_conn):
+    def __init__(self, redis_conn,lock):
         threading.Thread.__init__(self)
         self.redis_conn = redis_conn
-
+        self.lock = lock
     def run(self):
-        sendAction(self.redis_conn)
+        #if count is undeclared, initialize it to 1
+        if(r.get('count') is None):
+            r.set('count','1')
+        while (1):
+            self.lock.acquire()
+            command = sendAction(self.redis_conn)
+            self.lock.release()
+            if command == 'exit':
+                break
+            time.sleep(1)
+
 
 def sendAction(r):
-    #if count is undeclared, initialize it to 1
-    if(r.get('count') is None):
-        r.set('count','1')
-
-    while (1):
-        command = raw_input("Enter a message: ")
-        r.hset('command:'+str(r.get('count')),'message',command)
-        r.rpush('inQ','command:'+str(r.get('count')))
-        r.incr('count') 
-        if command == 'exit':
-            break
+    command = raw_input("Enter a message: ")
+    r.hset('command:'+str(r.get('count')),'message',command)
+    r.rpush('inQ','command:'+str(r.get('count')))
+    r.incr('count') 
+    return command
 
 #################
 # LISTEN THREAD #
 #################
 class listen(threading.Thread):
-    def __init__(self, redis_conn):
+    def __init__(self, redis_conn,lock):
         threading.Thread.__init__(self)
         self.redis_conn = redis_conn
+        self.lock = lock
     def run(self):
-        listenAction(self.redis_conn)
+        while (1):
+            self.lock.acquire()
+            response = listenAction(self.redis_conn)
+            self.lock.release()
+            if response == "exit":
+                break
+            time.sleep(1)
 
 #checks the outQ for response messages
 def listenAction(r):
-    var = 1
-    while var == 1 :
-        varvar = r.blpop('outQ')
-        response = r.hget(varvar[1],'response')
-        print response
-        if response == "exit":
-            break
+    varvar = r.blpop('outQ')
+    response = r.hget(varvar[1],'response')
+    print response
+    return response
 
 
 ##########################################################
@@ -170,10 +185,12 @@ notif = {
 
 r = redis.StrictRedis(host='localhost',port=6379,db=0)
 
-coreThread = core(r)
-listenThread = listen(r)
-sendThread = send(r)
+lock = threading.Lock()
 
+sendThread = send(r,lock)
+coreThread = core(r)
+listenThread = listen(r,lock)
+
+sendThread.start()    
 coreThread.start()      
-listenThread.start()
-sendThread.start()      
+listenThread.start()  
