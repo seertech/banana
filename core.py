@@ -2,6 +2,9 @@
 import redis
 import threading
 import time
+import os
+import ConfigParser
+import importlib
 from basecamp_module import Basecamp_module
 
 #################
@@ -11,8 +14,25 @@ class core(threading.Thread):
     def __init__(self,redis_conn):
         threading.Thread.__init__(self)
         self.redis_conn = redis_conn
+        self.moduleDict = {}
+        modules = os.listdir("modules")
+        config = ConfigParser.RawConfigParser()
+        for module in modules:
+            if module != "__init__.py" and module != "__init__.pyc":
+                files = os.listdir("modules/" + module)
+                for data in files:
+                    if data[len(data)-4:len(data)] == ".cfg":
+                        config.read("modules/" + module + "/" + data)
+                        key = config.get('Setup','keyword')
+                        value = importlib.import_module('.' + module,'modules.' + module)
+                        print value
+                        class_ = getattr(value,module.capitalize())
+                        test = class_()
+                        test.printf()
+                        self.moduleDict[key] = test
 
     def run(self):
+        self.moduleDict['module1'].printf()
         bananaAction(self.redis_conn)
 
 def bananaAction(r):
@@ -51,46 +71,6 @@ def parse_command(input):
         response = "exit"
 
     return response
-
-
-# logouts the current user
-def logout():
-    global logged_user
-    if logged_user is not None:
-        logged_user = None
-        return notif['notif_logout_success']
-    else:
-        return error['error_double_logout']
-
-
-# checks credentials and login user
-def login(tokens):
-
-    global logged_user
-
-    correct_credentials = False
-
-    for user in db_user.items():
-        if user[1]['username'] == tokens[2] and user[1]['password'] == tokens[3]:
-
-            correct_credentials = True
-            
-            if  logged_user is not None:
-                return error['error_already_logged']
-
-            elif user[1]['username'] == logged_user:
-                return error['error_already_logged']
-
-            else:
-                logged_user = user[1]['username']
-                return notif['notif_login_success']
-
-    if not correct_credentials:
-        return error['error_login']
-
-def basecampFunction(tokens):
-    bc = Basecamp_module()
-    bc.show_logs()
 
 #################
 # SEND THREAD   #
@@ -144,53 +124,18 @@ def listenAction(r):
     print response
     return response
 
-
 ##########################################################
 
-#   Temporary values for testing.
+if __name__ == "__main__":
 
-##########################################################
+    r = redis.StrictRedis(host='localhost',port=6379,db=0)
 
-logged_user = None
+    lock = threading.Lock()
 
-# Hardcoded user credentials for logging in
-db_user = {
-    1 : {
-        'username' : 'admin',
-        'password' : 'password'
-    },
+    sendThread = send(r,lock)
+    coreThread = core(r)
+    listenThread = listen(r,lock)
 
-    2 : {
-        'username' : 'foo',
-        'password' : 'bar'
-    }
-}
-
-# Hardcoded error message
-error = {
-    'error_unknown' : 'Unknown Command.',
-    'error_syntax' : 'Syntax Error.',
-    'error_already_logged' : 'You are already logged in. Log current account first.',
-    'error_double_logout' : 'You are not logged in in the first place.',
-    'error_login' : 'User does not exsist or username and password is incorrect.',
-}
-
-# Hardcoded notif message
-notif = {
-    'notif_login_success' : 'Login Success',
-    'notif_logout_success' : 'You have been successfully logged out.',
-}
-
-##########################################################
-
-r = redis.StrictRedis(host='localhost',port=6379,db=0)
-
-lock = threading.Lock()
-
-sendThread = send(r,lock)
-coreThread = core(r)
-listenThread = listen(r,lock)
-
-sendThread.start()    
-coreThread.start()      
-listenThread.start()  
+    sendThread.start()    
+    coreThread.start()      
+    listenThread.start()  

@@ -1,6 +1,6 @@
 import smtplib
 
-class Email_module:
+class Emailer:
 
 	"""
 	Function description : 
@@ -15,6 +15,10 @@ class Email_module:
 			username -> the username of the account that will send the email
 			password -> the password of the account that will send the email
 	"""
+
+	def printf(self):
+		print "Hello World!"
+
 	def send_email(self,details):
 
 		msg = """ \From: %s\nTo: %s\nSubject: %s\n\n%s
