@@ -1,3 +1,4 @@
+#!usr/bin/python
 # B.A.N.A.N.A. (Because Another Name Ain't Nothing Ayt)
 import redis
 import threading
@@ -20,8 +21,12 @@ class core(threading.Thread):
         for module in modules:
             if module != "__init__.py" and module != "__init__.pyc":
                 files = os.listdir("modules/" + module)
+
+                cfg_Flag = False
+
                 for data in files:
                     if data[len(data)-4:len(data)] == ".cfg":
+                        cfg_Flag = True
                         config.read("modules/" + module + "/" + data)
                         key = config.get('Setup','keyword')
                         value = importlib.import_module('.' + module,'modules.' + module)
@@ -31,9 +36,25 @@ class core(threading.Thread):
                         test.printf()
                         self.moduleDict[key] = test
 
+                if not cfg_Flag:
+                    self.createCFG(module) 
+
     def run(self):
-        self.moduleDict['module1'].printf()
+        #self.moduleDict['module1'].printf()
         bananaAction(self.redis_conn)
+
+    def createCFG(self,module):
+        config = ConfigParser.RawConfigParser()
+        config.add_section('Setup')
+        config.set('Setup','keyword',module)
+
+        with open('modules/' + module + '/' + module+'.cfg','wb') as configfile:
+            config.write(configfile)
+
+        value = importlib.import_module('.' + module,'modules.' + module)
+        class_ = getattr(value,module.capitalize())
+        test = class_()
+        self.moduleDict[module] = test
 
 def bananaAction(r):
     if(r.get('counttwo') is None):
