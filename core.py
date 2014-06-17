@@ -6,7 +6,6 @@ import time
 import os
 import ConfigParser
 import importlib
-from basecamp_module import Basecamp_module
 
 #################
 # CORE THREAD   #
@@ -16,32 +15,37 @@ class core(threading.Thread):
         threading.Thread.__init__(self)
         self.redis_conn = redis_conn
         self.moduleDict = {}
+        #looks into modules folder. 
         modules = os.listdir("modules")
         config = ConfigParser.RawConfigParser()
         for module in modules:
+            #we assume that the module folder only includes _init_.py,_init_.pyc, and more module folders
             if module != "__init__.py" and module != "__init__.pyc":
                 files = os.listdir("modules/" + module)
 
                 cfg_Flag = False
 
+                #looks for the cfg file
                 for data in files:
+                    #we assume that the files have the same name with the folder
+                    #we assume that there are .cfg and .py files in the folder.
+                    #the .py must have a class with name the same as the filename
+                    #the .py must have a class function run(input)
                     if data[len(data)-4:len(data)] == ".cfg":
                         cfg_Flag = True
                         config.read("modules/" + module + "/" + data)
                         key = config.get('Setup','keyword')
                         value = importlib.import_module('.' + module,'modules.' + module)
-                        print value
                         class_ = getattr(value,module.capitalize())
                         test = class_()
-                        test.printf()
                         self.moduleDict[key] = test
 
                 if not cfg_Flag:
                     self.createCFG(module) 
 
     def run(self):
-        #self.moduleDict['module1'].printf()
-        bananaAction(self.redis_conn)
+        print self.moduleDict
+        self.bananaAction(self.redis_conn)
 
     def createCFG(self,module):
         config = ConfigParser.RawConfigParser()
@@ -56,42 +60,42 @@ class core(threading.Thread):
         test = class_()
         self.moduleDict[module] = test
 
-def bananaAction(r):
-    if(r.get('counttwo') is None):
-        r.set('counttwo','1')
+    def bananaAction(self,r):
+        if(r.get('counttwo') is None):
+            r.set('counttwo','1')
 
-    var = 1
-    while var == 1 :
-        varvar = r.blpop('inQ')
-        dictionary = r.hgetall(varvar[1])
-        message = r.hget(varvar[1],'message')
-        response = parse_command(message)
-        r.hset('response:'+str(r.get('counttwo')),'response',response)
-        r.rpush('outQ','response:'+str(r.get('counttwo')))
-        r.incr('counttwo')
-        if response == "exit":
-            break
+        var = 1
+        while var == 1 :
+            varvar = r.blpop('inQ')
+            dictionary = r.hgetall(varvar[1])
+            message = r.hget(varvar[1],'message')
+            response = self.parse_command(message)
+            r.hset('response:'+str(r.get('counttwo')),'response',response)
+            r.rpush('outQ','response:'+str(r.get('counttwo')))
+            r.incr('counttwo')
+            if response == "exit":
+                break
 
-# Parses and identifies the command
-def parse_command(input):
-    tokens = input.split(' ')
-    response = 'default'
+    # Parses and identifies the command
+    def parse_command(self,input):
+        tokens = input.split(' ')
+        response = 'default'
 
-    if tokens[0] == "banana":
-        
-        if tokens[1] == "login":
-            response = login(tokens)
-        
-        elif tokens[1] == "logout":
-            response = logout()
+        if tokens[0] == "banana":
+            
+            if tokens[1] in self.moduleDict:
+                response = self.moduleDict[tokens[1]].run(input)
 
-        elif tokens[1] == "basecamp":
-            response = basecampFunction(tokens)
+            else:
+                response = 'Module not found!\n'
 
-    elif tokens[0] == "exit":
-        response = "exit"
+        elif tokens[0] == "exit":
+            response = "exit"
 
-    return response
+        else:
+            response = 'Function not found!\n'
+
+        return response
 
 #################
 # SEND THREAD   #
@@ -106,20 +110,20 @@ class send(threading.Thread):
         if(r.get('count') is None):
             r.set('count','1')
         while (1):
-            self.lock.acquire()
-            command = sendAction(self.redis_conn)
-            self.lock.release()
+            #self.lock.acquire()
+            command = self.sendAction(self.redis_conn)
+            #self.lock.release()
             if command == 'exit':
                 break
             time.sleep(1)
 
 
-def sendAction(r):
-    command = raw_input("Enter a message: ")
-    r.hset('command:'+str(r.get('count')),'message',command)
-    r.rpush('inQ','command:'+str(r.get('count')))
-    r.incr('count') 
-    return command
+    def sendAction(self,r):
+        command = raw_input("Enter a message: ")
+        r.hset('command:'+str(r.get('count')),'message',command)
+        r.rpush('inQ','command:'+str(r.get('count')))
+        r.incr('count') 
+        return command
 
 #################
 # LISTEN THREAD #
@@ -131,19 +135,19 @@ class listen(threading.Thread):
         self.lock = lock
     def run(self):
         while (1):
-            self.lock.acquire()
-            response = listenAction(self.redis_conn)
-            self.lock.release()
+            #self.lock.acquire()
+            response = self.listenAction(self.redis_conn)
+            #self.lock.release()
             if response == "exit":
                 break
             time.sleep(1)
 
-#checks the outQ for response messages
-def listenAction(r):
-    varvar = r.blpop('outQ')
-    response = r.hget(varvar[1],'response')
-    print response
-    return response
+    #checks the outQ for response messages
+    def listenAction(self,r):
+        varvar = r.blpop('outQ')
+        response = r.hget(varvar[1],'response')
+        print response
+        return response
 
 ##########################################################
 
