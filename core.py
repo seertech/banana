@@ -3,9 +3,11 @@
 import redis
 import threading
 import time
+import json
 import os
 import ConfigParser
 import importlib
+from flask import Flask, request
 
 #################
 # CORE THREAD   #
@@ -69,8 +71,10 @@ class core(threading.Thread):
             varvar = r.blpop('inQ')
             dictionary = r.hgetall(varvar[1])
             message = r.hget(varvar[1],'message')
+            gateway = r.hget(varvar[1],'gateway')
             response = self.parse_command(message)
             r.hset('response:'+str(r.get('counttwo')),'response',response)
+            r.hset('response:'+str(r.get('counttwo')),'gateway',gateway)
             r.rpush('outQ','response:'+str(r.get('counttwo')))
             r.incr('counttwo')
             if response == "exit":
@@ -115,12 +119,15 @@ class send(threading.Thread):
             #self.lock.release()
             if command == 'exit':
                 break
-            time.sleep(1)
+            #time.sleep(1)
 
 
     def sendAction(self,r):
-        command = raw_input("Enter a message: ")
+        message = r.blpop('mainQ')
+        command = r.hget(message[1],'text')
+        gateway = r.hget(message[1],'gateway')
         r.hset('command:'+str(r.get('count')),'message',command)
+        r.hset('command:'+str(r.get('count')),'gateway',gateway)
         r.rpush('inQ','command:'+str(r.get('count')))
         r.incr('count') 
         return command
@@ -134,33 +141,65 @@ class listen(threading.Thread):
         self.redis_conn = redis_conn
         self.lock = lock
     def run(self):
+        if(r.get('countthree') is None):
+            r.set('countthree','1')
         while (1):
             #self.lock.acquire()
             response = self.listenAction(self.redis_conn)
             #self.lock.release()
-            if response == "exit":
-                break
-            time.sleep(1)
+            #if response == "exit":
+                #break
+            #time.sleep(1)
 
     #checks the outQ for response messages
     def listenAction(self,r):
         varvar = r.blpop('outQ')
         response = r.hget(varvar[1],'response')
-        print response
+        gateway = r.hget(varvar[1],'gateway')
+        r.hset('response:'+str(r.get('countthree')),'response',response)
+        r.hset('response:'+str(r.get('countthree')),'gateway',gateway)
+        r.rpush('slackQ','response:'+str(r.get('countthree')))
+        r.incr('countthree') 
         return response
 
 ##########################################################
 
+r = redis.StrictRedis(host='localhost',port=6379,db=0)
+
+lock = threading.Lock()
+
+sendThread = send(r,lock)
+coreThread = core(r)
+listenThread = listen(r,lock)
+
+sendThread.start()    
+coreThread.start()      
+listenThread.start()  
+
+app = Flask(__name__)
+@app.route("/listen/", methods=['POST'])
+def main():
+    username = "banana"
+    # ignore message we sent
+    msguser = request.form.get("user_name", "").strip()
+    print msguser
+    if username == msguser or msguser.lower() == "slackbot":
+        return ""
+
+    #text = "\n".join(run_hook("message", request.form, {"config": config, "hooks": hooks}))
+    #if not text: return ""
+
+    r.hset('command','text',request.form.get("text", ""))
+    r.hset('command','gateway','slack')
+    r.rpush('mainQ','command')
+
+    varvar = r.blpop('slackQ')
+
+    response = {
+        "text": r.hget(varvar[1],'response')
+    }
+
+    return json.dumps(response)
+
 if __name__ == "__main__":
-
-    r = redis.StrictRedis(host='localhost',port=6379,db=0)
-
-    lock = threading.Lock()
-
-    sendThread = send(r,lock)
-    coreThread = core(r)
-    listenThread = listen(r,lock)
-
-    sendThread.start()    
-    coreThread.start()      
-    listenThread.start()  
+    app.run(debug=True, host = '0.0.0.0')
