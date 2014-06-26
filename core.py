@@ -2,12 +2,12 @@
 # B.A.N.A.N.A. (Because Another Name Ain't Nothing Ayt)
 import redis
 import threading
-import time
-import json
+#import time
 import os
 import ConfigParser
 import importlib
-from flask import Flask, request
+import pycurl
+import json
 
 #################
 # CORE THREAD   #
@@ -46,8 +46,17 @@ class core(threading.Thread):
                     self.createCFG(module) 
 
     def run(self):
-        print self.moduleDict
-        self.bananaAction(self.redis_conn)
+        if(self.redis_conn.get('counttwo') is None):
+            self.redis_conn.set('counttwo','1')
+
+        while (1):
+            varvar = self.redis_conn.blpop('inQ')
+            dictionary = self.redis_conn.hgetall(varvar[1])
+            message = self.redis_conn.hget(varvar[1],'message')
+            gateway = self.redis_conn.hget(varvar[1],'gateway')
+
+            worker = Worker(self.redis_conn,self.moduleDict,message,gateway)
+            worker.start()
 
     def createCFG(self,module):
         config = ConfigParser.RawConfigParser()
@@ -62,33 +71,22 @@ class core(threading.Thread):
         test = class_()
         self.moduleDict[module] = test
 
-    def bananaAction(self,r):
-        if(r.get('counttwo') is None):
-            r.set('counttwo','1')
+class Worker(threading.Thread):
+    def __init__(self,r,moduleDict,message,gateway):
+        threading.Thread.__init__(self)
+        self.r = r
+        self.moduleDict = moduleDict
+        self.message = message
+        self.gateway = gateway
 
-        var = 1
-        while var == 1 :
-            varvar = r.blpop('inQ')
-            dictionary = r.hgetall(varvar[1])
-            message = r.hget(varvar[1],'message')
-            gateway = r.hget(varvar[1],'gateway')
-            response = self.parse_command(message)
-            r.hset('response:'+str(r.get('counttwo')),'response',response)
-            r.hset('response:'+str(r.get('counttwo')),'gateway',gateway)
-            r.rpush('outQ','response:'+str(r.get('counttwo')))
-            r.incr('counttwo')
-            if response == "exit":
-                break
-
-    # Parses and identifies the command
-    def parse_command(self,input):
-        tokens = input.split(' ')
+    def run(self):
+        tokens = self.message.split(' ')
         response = 'default'
 
-        if tokens[0] == "banana":
-            
+        if tokens[0] == "banana::":
+                
             if tokens[1] in self.moduleDict:
-                response = self.moduleDict[tokens[1]].run(input)
+                response = self.moduleDict[tokens[1]].run(self.message)
 
             else:
                 response = 'Module not found!\n'
@@ -98,8 +96,11 @@ class core(threading.Thread):
 
         else:
             response = 'Function not found!\n'
-
-        return response
+        
+        self.r.hset('response:'+str(self.r.get('counttwo')),'response',response)
+        self.r.hset('response:'+str(self.r.get('counttwo')),'gateway',self.gateway)
+        self.r.rpush('outQ','response:'+str(self.r.get('counttwo')))
+        self.r.incr('counttwo')
 
 #################
 # SEND THREAD   #
@@ -111,8 +112,8 @@ class send(threading.Thread):
         self.lock = lock
     def run(self):
         #if count is undeclared, initialize it to 1
-        if(r.get('count') is None):
-            r.set('count','1')
+        if(self.redis_conn.get('count') is None):
+            self.redis_conn.set('count','1')
         while (1):
             #self.lock.acquire()
             command = self.sendAction(self.redis_conn)
@@ -141,14 +142,14 @@ class listen(threading.Thread):
         self.redis_conn = redis_conn
         self.lock = lock
     def run(self):
-        if(r.get('countthree') is None):
-            r.set('countthree','1')
+        if(self.redis_conn.get('countthree') is None):
+            self.redis_conn.set('countthree','1')
         while (1):
             #self.lock.acquire()
             response = self.listenAction(self.redis_conn)
             #self.lock.release()
-            #if response == "exit":
-                #break
+            if response == "exit":
+                break
             #time.sleep(1)
 
     #checks the outQ for response messages
@@ -156,50 +157,17 @@ class listen(threading.Thread):
         varvar = r.blpop('outQ')
         response = r.hget(varvar[1],'response')
         gateway = r.hget(varvar[1],'gateway')
-        r.hset('response:'+str(r.get('countthree')),'response',response)
-        r.hset('response:'+str(r.get('countthree')),'gateway',gateway)
-        r.rpush('slackQ','response:'+str(r.get('countthree')))
-        r.incr('countthree') 
+        
+        if gateway == 'slack':
+            self.sendSlack(response)
+
+        print response
         return response
 
-##########################################################
-
-r = redis.StrictRedis(host='localhost',port=6379,db=0)
-
-lock = threading.Lock()
-
-sendThread = send(r,lock)
-coreThread = core(r)
-listenThread = listen(r,lock)
-
-sendThread.start()    
-coreThread.start()      
-listenThread.start()  
-
-app = Flask(__name__)
-@app.route("/listen/", methods=['POST'])
-def main():
-    username = "banana"
-    # ignore message we sent
-    msguser = request.form.get("user_name", "").strip()
-    print msguser
-    if username == msguser or msguser.lower() == "slackbot":
-        return ""
-
-    #text = "\n".join(run_hook("message", request.form, {"config": config, "hooks": hooks}))
-    #if not text: return ""
-
-    r.hset('command','text',request.form.get("text", ""))
-    r.hset('command','gateway','slack')
-    r.rpush('mainQ','command')
-
-    varvar = r.blpop('slackQ')
-
-    response = {
-        "text": r.hget(varvar[1],'response')
-    }
-
-    return json.dumps(response)
-
-if __name__ == "__main__":
-    app.run(debug=True, host = '0.0.0.0')
+    def sendSlack(self,response):
+        c = pycurl.Curl()
+        print "CURL!!!"
+        c.setopt(c.URL,'https://seertech.slack.com/services/hooks/incoming-webhook?token=PBD7gPUVByYLziBPQ4XkrjvJ')
+        postfield = {"channel": "#testingbot", "username": "banana", "text": response }
+        c.setopt(c.POSTFIELDS,'payload='+json.dumps(postfield))
+        c.perform()

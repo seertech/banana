@@ -63,4 +63,3 @@ class Emailer:
 			response = 'Function not found!\n'
 
 		return response
-
