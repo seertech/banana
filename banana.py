@@ -2,6 +2,9 @@ from flask import Flask, request
 import threading
 import core
 import redis
+import pycurl
+import cStringIO
+import json
 
 #FLASK SLACK LISTENER
 app = Flask(__name__)
@@ -12,8 +15,29 @@ def slack():
     if username == msguser or msguser.lower() == "slackbot":
         return ""
 
+
+    slackid = request.form.get("user_id", "")
+    user_email = ''
+
+
+    buf = cStringIO.StringIO()
+
+    c = pycurl.Curl()
+    print "CURL!!!"
+    c.setopt(c.URL,'https://slack.com/api/users.list?token=xoxp-2315794369-2395812124-2401574040-f0d1b3&pretty=1')
+    c.setopt(c.WRITEFUNCTION, buf.write)
+    c.perform()
+    
+    userlist = json.loads(buf.getvalue())
+    buf.close()
+
+    for user in userlist['members']:
+        if user['id'] == slackid:
+            user_email = user['profile']['email']
+
     r.hset('command','message',request.form.get("text", ""))
     r.hset('command','gateway','slack')
+    r.hset('command','sender',user_email)
     r.rpush('inQ','command')
 
     return ""

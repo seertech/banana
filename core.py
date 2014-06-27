@@ -54,8 +54,9 @@ class core(threading.Thread):
             dictionary = self.redis_conn.hgetall(varvar[1])
             message = self.redis_conn.hget(varvar[1],'message')
             gateway = self.redis_conn.hget(varvar[1],'gateway')
+            sender = self.redis_conn.hget(varvar[1],'sender')
 
-            worker = Worker(self.redis_conn,self.moduleDict,message,gateway)
+            worker = Worker(self.redis_conn,self.moduleDict,message,gateway,sender)
             worker.start()
 
     def createCFG(self,module):
@@ -72,12 +73,13 @@ class core(threading.Thread):
         self.moduleDict[module] = test
 
 class Worker(threading.Thread):
-    def __init__(self,r,moduleDict,message,gateway):
+    def __init__(self,r,moduleDict,message,gateway,sender):
         threading.Thread.__init__(self)
         self.r = r
         self.moduleDict = moduleDict
         self.message = message
         self.gateway = gateway
+        self.sender = sender
 
     def run(self):
         tokens = self.message.split(' ')
@@ -86,7 +88,7 @@ class Worker(threading.Thread):
         if tokens[0] == "banana::":
                 
             if tokens[1] in self.moduleDict:
-                response = self.moduleDict[tokens[1]].run(self.message)
+                response = self.moduleDict[tokens[1]].run(self.message,self.sender)
 
             else:
                 response = 'Module not found!\n'
@@ -99,6 +101,7 @@ class Worker(threading.Thread):
         
         self.r.hset('response:'+str(self.r.get('counttwo')),'response',response)
         self.r.hset('response:'+str(self.r.get('counttwo')),'gateway',self.gateway)
+        self.r.hset('response:'+str(self.r.get('counttwo')),'sender',self.sender)
         self.r.rpush('outQ','response:'+str(self.r.get('counttwo')))
         self.r.incr('counttwo')
 
@@ -157,6 +160,7 @@ class listen(threading.Thread):
         varvar = r.blpop('outQ')
         response = r.hget(varvar[1],'response')
         gateway = r.hget(varvar[1],'gateway')
+        sender = r.hget(varvar[1],'sender')
         
         if gateway == 'slack':
             self.sendSlack(response)
