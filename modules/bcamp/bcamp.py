@@ -4,9 +4,12 @@ import ConfigParser
 import re
 import time
 from datetime import datetime
+<<<<<<< HEAD
 import requests
 import json
 import redis
+=======
+>>>>>>> 2772d8b7eca90ba47bb1a046cc9123bc74970b0e
 
 class Bcamp:
 	def __init__(self):
@@ -15,6 +18,7 @@ class Bcamp:
 		self.api_token = config.get('Setup','apitoken')
 		self.keyword = config.get('Setup','keyword')
 
+<<<<<<< HEAD
 	def cacheData(self):
 		r = redis.StrictRedis(host='localhost',port=6379,db=0)
 		bc = Basecamp('https://seertechnologies.basecamphq.com', self.api_token)
@@ -138,10 +142,13 @@ class Bcamp:
 
 
 
+=======
+>>>>>>> 2772d8b7eca90ba47bb1a046cc9123bc74970b0e
 	def run(self,input,sender):
 		regex = '(.*)\s%s\s+(\S*)' % self.keyword
 		method_checker = re.match(regex,input)
 		response = 'default'
+<<<<<<< HEAD
 		if(method_checker.group(2) == 'update'):
 			""" banana: basecamp update"""
 			self.cacheData()
@@ -194,11 +201,15 @@ class Bcamp:
 				return response
 
 
+=======
+		if(method_checker.group(2) == 'log'):
+>>>>>>> 2772d8b7eca90ba47bb1a046cc9123bc74970b0e
 			""" banana:: basecamp log <"project name"> <hours> <"desc">"""
 			regex = '(.*)\s%s\s+log\s+["|\'](.*)["|\']\s+([0-9]*[0-9]?\.+[0-9])\s+["|\'](.*)["|\']' % self.keyword
 			parser = re.match(regex,input)
 			
 			if parser:
+<<<<<<< HEAD
 				print "log 2"
 				projectid = ''
 				projectname = parser.group(2)
@@ -211,10 +222,24 @@ class Bcamp:
 				
 				projectid = project['id']
 
+=======
+
+				projectname = parser.group(2)
+				bc = Basecamp('https://seertechnologies.basecamphq.com', self.api_token)
+				xml = bc.projects()
+				items = ET.fromstring(xml).findall('project')
+				for item in items:
+					if item.find('name').text == projectname:
+						projectid = item.find('id').text
+						break
+
+				print projectid
+>>>>>>> 2772d8b7eca90ba47bb1a046cc9123bc74970b0e
 				hour = parser.group(3)
 				desc = parser.group(4)
 				date = int(time.strftime("%Y%m%d"))
 
+<<<<<<< HEAD
 				getparams = {'token': 'xoxp-2315794369-2395812124-2401574040-f0d1b3','pretty':'1'}
 				req = requests.get('https://slack.com/api/users.list', params=getparams)
 				userlist = json.loads(req.content)
@@ -237,6 +262,13 @@ class Bcamp:
 				bc.create_time_entry(desc,float(hour),int(userid),date,int(projectid),None)
 				
 				return response
+=======
+				xml = bc.people()
+				print xml
+				bc.create_time_entry(desc,float(hour),11207005,date,int(projectid),None)
+				#bc.create_time_entry("python",0.5,)
+				response = 'Successfully logged!'
+>>>>>>> 2772d8b7eca90ba47bb1a046cc9123bc74970b0e
 
 			else:
 				response = 'Wrong set of parameters. Must be banana:: basecamp log <"project name"> <hours> <"description">'
@@ -248,11 +280,15 @@ class Bcamp:
 			if parser:
 
 				email = parser.group(2)
+<<<<<<< HEAD
 				email = email.split('|')[1][:-1]
+=======
+>>>>>>> 2772d8b7eca90ba47bb1a046cc9123bc74970b0e
 				projectlist = []
 				userid = ''
 
 
+<<<<<<< HEAD
 
 				r = redis.StrictRedis(host='localhost',port=6379,db=0)
 				userid = r.hget('Users',email)
@@ -270,11 +306,36 @@ class Bcamp:
 					checker = r.zrangebyscore("peopleperproject-" + projectid, userid, userid)
 					if checker != None and checker != "" and checker != []:
 						projectlist.append(projectname)
+=======
+				bc = Basecamp('https://seertechnologies.basecamphq.com', self.api_token)
+				xml = bc.people()
+				items = ET.fromstring(xml).findall('person')
+				for item in items:
+					if item.find('email-address').text == email:
+						userid = item.find('id').text
+						break
+
+				xml = bc.projects()
+				items = ET.fromstring(xml).findall('project')
+				for item in items:
+					projectpeople = bc.people_per_project(int(item.find('id').text))
+					peoplesearch = ET.fromstring(projectpeople).findall('person')
+					for person in peoplesearch:
+						
+						if person.find('id').text == userid:
+							projectlist.append(item.find('name').text)
+							break
+
+>>>>>>> 2772d8b7eca90ba47bb1a046cc9123bc74970b0e
 
 				print projectlist
 				response = "Projects of %s: \n\n" % email
 				for project in projectlist:
 					response = response + project + "\n"
+<<<<<<< HEAD
+=======
+				#bc.create_time_entry("python",0.5,)
+>>>>>>> 2772d8b7eca90ba47bb1a046cc9123bc74970b0e
 
 			else:
 				response = 'Wrong set of parameters. Must be banana:: basecamp getProjects <email>'
@@ -288,13 +349,18 @@ class Bcamp:
 				projectid = ''
 				userid = ''
 				projectname = parser.group(2)
+<<<<<<< HEAD
 				email = parser.group(3).split('|')[1][:-1]
+=======
+				email = parser.group(3)
+>>>>>>> 2772d8b7eca90ba47bb1a046cc9123bc74970b0e
 				date1 = parser.group(4)
 				date1 = datetime(int(date1[0:4]), int(date1[5:7]), int(date1[8:10]))
 				date2 = parser.group(5)
 				date2 = datetime(int(date2[0:4]), int(date2[5:7]), int(date2[8:10]))
 				user_time_entry = []
 
+<<<<<<< HEAD
 
 
 				r = redis.StrictRedis(host='localhost',port=6379,db=0)
@@ -328,6 +394,53 @@ class Bcamp:
 							time_instance.append(timedetails['hours'])
 							time_instance.append(timedetails['description'])
 							user_time_entry.append(time_instance)
+=======
+				bc = Basecamp('https://seertechnologies.basecamphq.com', self.api_token)
+				xml = bc.projects()
+				items = ET.fromstring(xml).findall('project')
+				for item in items:
+					if item.find('name').text == projectname:
+						projectid = int(item.find('id').text)
+						break
+
+				print projectid
+
+				xml = bc.people()
+				items = ET.fromstring(xml).findall('person')
+				for item in items:
+					if item.find('email-address').text == email:
+						userid = item.find('id').text
+						break
+
+				print userid
+
+				x = 1
+				time_entries = 'init'
+				while 1:
+					time_entries = bc.time_entries_per_project(project_id = projectid, page = x)
+					items = ET.fromstring(time_entries).findall('time-entry')
+					count = 0
+					for item in items:
+						count = count + 1
+						if item.find('person-id').text == userid:
+							
+							entrydate = item.find('date').text
+							entrydate = datetime(int(entrydate[0:4]), int(entrydate[5:7]), int(entrydate[8:10]))
+							print 'match!'
+							if entrydate >= date1 and entrydate <= date2:
+								time_instance = []
+								time_instance.append(item.find('date').text)
+								time_instance.append(item.find('hours').text)
+								time_instance.append(item.find('description').text)
+								user_time_entry.append(time_instance)
+
+
+					if count != 50:
+						break
+					x = x + 1
+
+				print user_time_entry
+>>>>>>> 2772d8b7eca90ba47bb1a046cc9123bc74970b0e
 
 				response = "Logs of %s: \n\n" % email
 				for entry in user_time_entry:
@@ -336,6 +449,7 @@ class Bcamp:
 			else:
 				response = 'Wrong set of parameters. Must be banana:: basecamp getLogs <"project name"> <email> <yyyy-mm-dd> <yyyy-mm-dd>'
 
+<<<<<<< HEAD
 
 		elif method_checker.group(2) == "getDistribution":
 			""" banana:: basecamp getDistribution <email>"""
@@ -440,3 +554,9 @@ class Bcamp:
 			response = 'Module not found!'
 
 		return response
+=======
+		else:
+			response = 'Module not found!'
+
+		return response
+>>>>>>> 2772d8b7eca90ba47bb1a046cc9123bc74970b0e
