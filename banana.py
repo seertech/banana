@@ -2,6 +2,8 @@ from flask import Flask, request
 import threading
 import core
 import redis
+import cStringIO
+
 
 #FLASK SLACK LISTENER
 app = Flask(__name__)
@@ -12,8 +14,13 @@ def slack():
     if username == msguser or msguser.lower() == "slackbot":
         return ""
 
+
+    slackid = request.form.get("user_id", "")
+
+
     r.hset('command','message',request.form.get("text", ""))
     r.hset('command','gateway','slack')
+    r.hset('command','sender',slackid)
     r.rpush('inQ','command')
 
     return ""
