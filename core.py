@@ -6,7 +6,7 @@ import threading
 import os
 import ConfigParser
 import importlib
-import pycurl
+import requests
 import json
 
 #################
@@ -169,9 +169,7 @@ class listen(threading.Thread):
         return response
 
     def sendSlack(self,response):
-        c = pycurl.Curl()
-        print "CURL!!!"
-        c.setopt(c.URL,'https://seertech.slack.com/services/hooks/incoming-webhook?token=PBD7gPUVByYLziBPQ4XkrjvJ')
-        postfield = {"channel": "#testingbot", "username": "banana", "text": response }
-        c.setopt(c.POSTFIELDS,'payload='+json.dumps(postfield))
-        c.perform()
+
+        postparams = {"channel": "#testingbot", "username": "banana", "text": "```" + response + "```" }
+        getparams = {"token":"PBD7gPUVByYLziBPQ4XkrjvJ"}
+        req = requests.post('https://seertech.slack.com/services/hooks/incoming-webhook?token=PBD7gPUVByYLziBPQ4XkrjvJ',params=getparams,data=json.dumps(postparams))
